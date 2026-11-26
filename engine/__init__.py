@@ -19,9 +19,15 @@ import OpenEXR
 if __package__:
     from .material import Material
     from .rasterizer import PBRRenderer
+    from .mesh import Mesh
+    from .importer import load_meshes
+    from .texture import load_color_texture
 else:
     from material import Material
     from rasterizer import PBRRenderer
+    from mesh import Mesh
+    from importer import load_meshes
+    from texture import load_color_texture
 
 
 SKYBOX_VERTEX_SHADER = """
@@ -298,6 +304,9 @@ def find_project_asset(*parts):
 __all__ = [
     "Material",
     "PBRRenderer",
+    "Mesh",
+    "load_meshes",
+    "load_color_texture",
     "Skybox",
     "perspective",
     "look_at",
