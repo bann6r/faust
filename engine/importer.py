@@ -5,7 +5,10 @@ from pathlib import Path
 
 import numpy as np
 
-from .mesh import MeshData
+try:
+    from .mesh import MeshData
+except ImportError:  # Supports direct execution of engine/__init__.py.
+    from mesh import MeshData
 
 
 @contextmanager
@@ -22,7 +25,6 @@ def _open_scene(path):
     flags = (
         postprocess.aiProcess_Triangulate
         | postprocess.aiProcess_GenSmoothNormals
-        | postprocess.aiProcess_CalcTangentSpace
         | postprocess.aiProcess_JoinIdenticalVertices
         | postprocess.aiProcess_PreTransformVertices
     )
