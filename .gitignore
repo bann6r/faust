@@ -1,0 +1,19 @@
+# IDE files
+.idea/
+.vscode/
+*.iml
+
+# Dump files
+*.dmp
+*.dump
+core
+core.*
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
