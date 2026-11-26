@@ -1,0 +1,6 @@
+glfw
+moderngl
+numpy
+OpenEXR
+Pillow
+pyassimp
