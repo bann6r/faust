@@ -16,6 +16,13 @@ import moderngl
 import numpy as np
 import OpenEXR
 
+if __package__:
+    from .material import Material
+    from .rasterizer import PBRRenderer
+else:
+    from material import Material
+    from rasterizer import PBRRenderer
+
 
 VERTEX_SHADER = """
 #version 330
@@ -148,25 +155,6 @@ def rotation_y(angle):
         ],
         dtype="f4",
     )
-
-
-def create_cube():
-    faces = [
-        ([-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1], (1, 0, 0)),
-        ([1, -1, -1], [-1, -1, -1], [-1, 1, -1], [1, 1, -1], (0, 1, 0)),
-        ([1, -1, 1], [1, -1, -1], [1, 1, -1], [1, 1, 1], (0, 0, 1)),
-        ([-1, -1, -1], [-1, -1, 1], [-1, 1, 1], [-1, 1, -1], (1, 1, 0)),
-        ([-1, 1, 1], [1, 1, 1], [1, 1, -1], [-1, 1, -1], (1, 0, 1)),
-        ([-1, -1, -1], [1, -1, -1], [1, -1, 1], [-1, -1, 1], (0, 1, 1)),
-    ]
-
-    vertices = []
-    for a, b, c, d, color in faces:
-        for position in (a, b, c, a, c, d):
-            vertices.extend(position)
-            vertices.extend(color)
-
-    return np.asarray(vertices, dtype="f4")
 
 
 def create_skybox_cube():
@@ -360,27 +348,14 @@ def main():
 
         ctx = moderngl.create_context()
 
-        cube_program = ctx.program(
-            vertex_shader=VERTEX_SHADER,
-            fragment_shader=FRAGMENT_SHADER,
+        material = Material(
+            name="PrototypePaint",
+            base_color=(0.80, 0.12, 0.04),
+            metallic=0.15,
+            roughness=0.32,
         )
-        resources.append(cube_program)
-
-        cube_vbo = ctx.buffer(create_cube().tobytes())
-        resources.append(cube_vbo)
-
-        cube_vao = ctx.vertex_array(
-            cube_program,
-            [
-                (
-                    cube_vbo,
-                    "3f 3f",
-                    "in_position",
-                    "in_color",
-                )
-            ],
-        )
-        resources.append(cube_vao)
+        pbr_renderer = PBRRenderer(ctx)
+        resources.append(pbr_renderer)
 
         skybox_path = find_project_asset("assets", "sky.exr")
         skybox = Skybox(ctx, skybox_path)
@@ -427,11 +402,13 @@ def main():
             elapsed = glfw.get_time() - start_time
             model = rotation_y(elapsed)
 
-            cube_program["model"].write(model.T.tobytes())
-            cube_program["view"].write(view.T.tobytes())
-            cube_program["projection"].write(projection.T.tobytes())
-
-            cube_vao.render(mode=moderngl.TRIANGLES)
+            pbr_renderer.render_cube(
+                model,
+                view,
+                projection,
+                material,
+                camera_position=eye,
+            )
             glfw.swap_buffers(window)
 
     finally:
