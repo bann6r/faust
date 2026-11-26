@@ -19,13 +19,13 @@ import OpenEXR
 if __package__:
     from .material import Material
     from .rasterizer import PBRRenderer
-    from .mesh import Mesh
+    from .mesh import Mesh, MeshData
     from .importer import load_meshes
     from .texture import load_color_texture
 else:
     from material import Material
     from rasterizer import PBRRenderer
-    from mesh import Mesh
+    from mesh import Mesh, MeshData
     from importer import load_meshes
     from texture import load_color_texture
 
@@ -305,6 +305,7 @@ __all__ = [
     "Material",
     "PBRRenderer",
     "Mesh",
+    "MeshData",
     "load_meshes",
     "load_color_texture",
     "Skybox",
