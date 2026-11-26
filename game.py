@@ -39,8 +39,7 @@ SKYBOX_CONFIG = {
     "path": "assets/sky.exr",
 }
 
-# Prototype scene contents. The current PBRRenderer exposes a test cube;
-# mesh-file importing and arbitrary mesh instances are future engine work.
+# Scene asset paths are game configuration; Faust owns import and rendering.
 SCENE_CONFIG = {
     "camera_position": (0.0, 0.0, 5.0),
     "camera_target": (0.0, 0.0, 0.0),
@@ -49,15 +48,16 @@ SCENE_CONFIG = {
     "near_clip": 0.1,
     "far_clip": 100.0,
     "mesh": {
-        "type": "prototype_cube",
+        "path": "assets/multi_cleaner_bottle_4k.fbx",
+        "base_color_texture": "assets/textures/multi_cleaner_bottle_diff_4k.jpg",
         "material": {
-            "name": "PrototypePaint",
-            "base_color": (0.80, 0.12, 0.04),
-            "metallic": 0.15,
-            "roughness": 0.32,
+            "name": "CleanerBottle",
+            "base_color": (1.0, 1.0, 1.0),
+            "metallic": 0.0,
+            "roughness": 0.5,
             "emissive": (0.0, 0.0, 0.0),
         },
-        "rotation_speed": 1.0,
+        "rotation_speed": 0.35,
     },
     "lighting": {
         "direction": (0.45, 0.8, 0.35),
@@ -98,14 +98,18 @@ def create_window():
 
 
 def create_scene(context):
-    material_config = SCENE_CONFIG["mesh"]["material"]
-    material = engine.Material(**material_config)
+    mesh_config = SCENE_CONFIG["mesh"]
+    material = engine.Material(**mesh_config["material"])
+    model_path = engine.find_project_asset(*Path(mesh_config["path"]).parts)
+    texture_path = engine.find_project_asset(*Path(mesh_config["base_color_texture"]).parts)
+    mesh_data = engine.load_meshes(model_path)
+    meshes = [engine.Mesh(context, item) for item in mesh_data]
+    base_color_texture = engine.load_color_texture(context, texture_path)
 
     pbr_renderer = engine.PBRRenderer(context)
     skybox_path = engine.find_project_asset(*Path(SKYBOX_CONFIG["path"]).parts)
     skybox = engine.Skybox(context, skybox_path)
-
-    return material, pbr_renderer, skybox, skybox_path
+    return material, pbr_renderer, skybox, meshes, base_color_texture, model_path, skybox_path
 
 
 def run():
@@ -117,8 +121,8 @@ def run():
         window = create_window()
         context = moderngl.create_context()
 
-        material, pbr_renderer, skybox, skybox_path = create_scene(context)
-        resources.extend((pbr_renderer, skybox))
+        material, pbr_renderer, skybox, meshes, base_color_texture, model_path, skybox_path = create_scene(context)
+        resources.extend((pbr_renderer, skybox, base_color_texture, *meshes))
 
         context.enable(moderngl.DEPTH_TEST)
         context.depth_func = "<"
@@ -134,6 +138,9 @@ def run():
         print("Faust initialized")
         print("GPU:", context.info.get("GL_RENDERER", "Unknown"))
         print("OpenGL:", context.info.get("GL_VERSION", "Unknown"))
+        print("Model:", model_path)
+        print("Imported meshes:", len(meshes))
+        print("Base color texture:", SCENE_CONFIG["mesh"]["base_color_texture"])
         print("Skybox:", skybox_path)
         print("VSync:", GPU_CONFIG["vsync"])
         print("MSAA samples requested:", GPU_CONFIG["msaa_samples"])
@@ -169,16 +176,19 @@ def run():
             )
 
             lighting = SCENE_CONFIG["lighting"]
-            pbr_renderer.render_cube(
-                model,
-                view,
-                projection,
-                material,
-                camera_position=eye,
-                light_direction=lighting["direction"],
-                light_radiance=lighting["radiance"],
-                ambient_radiance=lighting["ambient_radiance"],
-            )
+            for mesh in meshes:
+                pbr_renderer.render_mesh(
+                    mesh,
+                    model,
+                    view,
+                    projection,
+                    material,
+                    camera_position=eye,
+                    base_color_texture=base_color_texture,
+                    light_direction=lighting["direction"],
+                    light_radiance=lighting["radiance"],
+                    ambient_radiance=lighting["ambient_radiance"],
+                )
 
             glfw.swap_buffers(window)
 
