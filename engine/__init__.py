@@ -24,35 +24,6 @@ else:
     from rasterizer import PBRRenderer
 
 
-VERTEX_SHADER = """
-#version 330
-
-in vec3 in_position;
-in vec3 in_color;
-
-uniform mat4 model;
-uniform mat4 view;
-uniform mat4 projection;
-
-out vec3 vertex_color;
-
-void main() {
-    vertex_color = in_color;
-    gl_Position = projection * view * model * vec4(in_position, 1.0);
-}
-"""
-
-FRAGMENT_SHADER = """
-#version 330
-
-in vec3 vertex_color;
-out vec4 frag_color;
-
-void main() {
-    frag_color = vec4(vertex_color, 1.0);
-}
-"""
-
 SKYBOX_VERTEX_SHADER = """
 #version 330
 
@@ -323,109 +294,14 @@ def find_project_asset(*parts):
     return candidates[-1]
 
 
-def main():
-    if not glfw.init():
-        raise RuntimeError("could not initialize GLFW")
 
-    window = None
-    ctx = None
-    resources = []
-
-    try:
-        glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, 3)
-        glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, 3)
-        glfw.window_hint(
-            glfw.OPENGL_PROFILE,
-            glfw.OPENGL_CORE_PROFILE,
-        )
-
-        window = glfw.create_window(1280, 720, "Faust", None, None)
-        if not window:
-            raise RuntimeError("could not create GLFW window")
-
-        glfw.make_context_current(window)
-        glfw.swap_interval(1)
-
-        ctx = moderngl.create_context()
-
-        material = Material(
-            name="PrototypePaint",
-            base_color=(0.80, 0.12, 0.04),
-            metallic=0.15,
-            roughness=0.32,
-        )
-        pbr_renderer = PBRRenderer(ctx)
-        resources.append(pbr_renderer)
-
-        skybox_path = find_project_asset("assets", "sky.exr")
-        skybox = Skybox(ctx, skybox_path)
-        resources.append(skybox)
-
-        ctx.enable(moderngl.DEPTH_TEST)
-        ctx.depth_func = "<"
-
-        eye = np.array([0, 0, 5], dtype="f4")
-        target = np.array([0, 0, 0], dtype="f4")
-        up = np.array([0, 1, 0], dtype="f4")
-        view = look_at(eye, target, up)
-
-        start_time = glfw.get_time()
-
-        print("Faust initialized")
-        print("GPU:", ctx.info.get("GL_RENDERER", "Unknown"))
-        print("OpenGL:", ctx.info.get("GL_VERSION", "Unknown"))
-        print("Skybox:", skybox_path)
-
-        while not glfw.window_should_close(window):
-            glfw.poll_events()
-
-            if glfw.get_key(window, glfw.KEY_ESCAPE) == glfw.PRESS:
-                break
-
-            width, height = glfw.get_framebuffer_size(window)
-            if width == 0 or height == 0:
-                continue
-
-            ctx.viewport = (0, 0, width, height)
-            ctx.clear(0.025, 0.03, 0.045, 1.0, depth=1.0)
-
-            projection = perspective(
-                math.radians(70.0),
-                width / height,
-                0.1,
-                100.0,
-            )
-
-            # Draw the environment first, then ordinary scene geometry.
-            skybox.render(view, projection)
-
-            elapsed = glfw.get_time() - start_time
-            model = rotation_y(elapsed)
-
-            pbr_renderer.render_cube(
-                model,
-                view,
-                projection,
-                material,
-                camera_position=eye,
-            )
-            glfw.swap_buffers(window)
-
-    finally:
-        for resource in reversed(resources):
-            try:
-                resource.release()
-            except Exception:
-                pass
-
-        if ctx is not None:
-            ctx.release()
-
-        if window is not None:
-            glfw.destroy_window(window)
-
-        glfw.terminate()
-
-
-if __name__ == "__main__":
-    main()
+__all__ = [
+    "Material",
+    "PBRRenderer",
+    "Skybox",
+    "perspective",
+    "look_at",
+    "rotation_y",
+    "find_project_asset",
+    "load_exr_rgb",
+]
