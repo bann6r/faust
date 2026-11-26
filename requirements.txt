@@ -4,3 +4,4 @@ numpy
 OpenEXR
 Pillow
 pyassimp
+pytest
