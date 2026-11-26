@@ -157,25 +157,6 @@ def rotation_y(angle):
     )
 
 
-def create_cube():
-    faces = [
-        ([-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1], (1, 0, 0)),
-        ([1, -1, -1], [-1, -1, -1], [-1, 1, -1], [1, 1, -1], (0, 1, 0)),
-        ([1, -1, 1], [1, -1, -1], [1, 1, -1], [1, 1, 1], (0, 0, 1)),
-        ([-1, -1, -1], [-1, -1, 1], [-1, 1, 1], [-1, 1, -1], (1, 1, 0)),
-        ([-1, 1, 1], [1, 1, 1], [1, 1, -1], [-1, 1, -1], (1, 0, 1)),
-        ([-1, -1, -1], [1, -1, -1], [1, -1, 1], [-1, -1, 1], (0, 1, 1)),
-    ]
-
-    vertices = []
-    for a, b, c, d, color in faces:
-        for position in (a, b, c, a, c, d):
-            vertices.extend(position)
-            vertices.extend(color)
-
-    return np.asarray(vertices, dtype="f4")
-
-
 def create_skybox_cube():
     # 36 triangle vertices. Culling is disabled while drawing the skybox,
     # so the camera can see the inside faces.
