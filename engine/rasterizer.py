@@ -18,6 +18,7 @@ PBR_VERTEX_SHADER = """
 
 in vec3 in_position;
 in vec3 in_normal;
+in vec2 in_uv;
 
 uniform mat4 model;
 uniform mat4 view;
@@ -25,11 +26,13 @@ uniform mat4 projection;
 
 out vec3 world_position;
 out vec3 world_normal;
+out vec2 texcoord;
 
 void main() {
     vec4 world = model * vec4(in_position, 1.0);
     world_position = world.xyz;
     world_normal = normalize(transpose(inverse(mat3(model))) * in_normal);
+    texcoord = in_uv;
     gl_Position = projection * view * world;
 }
 """
@@ -40,7 +43,10 @@ PBR_FRAGMENT_SHADER = """
 
 in vec3 world_position;
 in vec3 world_normal;
+in vec2 texcoord;
 
+uniform sampler2D base_color_map;
+uniform bool use_base_color_map;
 uniform vec3 camera_position;
 
 uniform vec3 material_base_color;
@@ -85,6 +91,10 @@ vec3 fresnel_schlick(float v_dot_h, vec3 f0) {
 }
 
 void main() {
+    vec3 sampled_base_color = material_base_color;
+    if (use_base_color_map) {
+        sampled_base_color *= texture(base_color_map, texcoord).rgb;
+    }
     vec3 n = normalize(world_normal);
     vec3 v = normalize(camera_position - world_position);
     vec3 l = normalize(light_direction);
@@ -99,7 +109,7 @@ void main() {
     float metallic = clamp(material_metallic, 0.0, 1.0);
 
     // Dielectrics start near 4% reflectance; metals use their base color.
-    vec3 f0 = mix(vec3(0.04), material_base_color, metallic);
+    vec3 f0 = mix(vec3(0.04), sampled_base_color, metallic);
     vec3 fresnel = fresnel_schlick(v_dot_h, f0);
 
     float distribution = distribution_ggx(n_dot_h, roughness);
@@ -108,14 +118,14 @@ void main() {
         max(4.0 * n_dot_v * n_dot_l, EPSILON);
 
     vec3 diffuse_weight = (vec3(1.0) - fresnel) * (1.0 - metallic);
-    vec3 diffuse = diffuse_weight * material_base_color / PI;
+    vec3 diffuse = diffuse_weight * sampled_base_color / PI;
 
     // One directional key light.
     vec3 direct_light = (diffuse + specular) * light_radiance * n_dot_l;
 
     // Temporary ambient fill only; this is not environment-map IBL.
     vec3 ambient_light =
-        material_base_color * ambient_radiance * (1.0 - metallic);
+        sampled_base_color * ambient_radiance * (1.0 - metallic);
 
     vec3 linear_color = direct_light + ambient_light + material_emissive;
 
@@ -145,6 +155,7 @@ def create_cube_geometry() -> np.ndarray:
         for position in (a, b, c, a, c, d):
             vertices.extend(position)
             vertices.extend(normal)
+            vertices.extend(((position[0] + 1.0) * 0.5, (position[1] + 1.0) * 0.5))
 
     return np.asarray(vertices, dtype="f4")
 
@@ -161,8 +172,33 @@ class PBRRenderer:
         self.vertex_buffer = context.buffer(create_cube_geometry().tobytes())
         self.vertex_array = context.vertex_array(
             self.program,
-            [(self.vertex_buffer, "3f 3f", "in_position", "in_normal")],
+            [(self.vertex_buffer, "3f 3f 2f", "in_position", "in_normal", "in_uv")],
         )
+
+    def _set_scene_uniforms(self, model, view, projection, material, camera_position, light_direction, light_radiance, ambient_radiance):
+        self.program["model"].write(np.asarray(model, dtype="f4").T.tobytes())
+        self.program["view"].write(np.asarray(view, dtype="f4").T.tobytes())
+        self.program["projection"].write(np.asarray(projection, dtype="f4").T.tobytes())
+        parameters = material.shader_parameters()
+        self.program["material_base_color"].value = parameters["base_color"]
+        self.program["material_metallic"].value = parameters["metallic"]
+        self.program["material_roughness"].value = parameters["roughness"]
+        self.program["material_emissive"].value = parameters["emissive"]
+        self.program["camera_position"].value = tuple(float(v) for v in camera_position)
+        self.program["light_direction"].value = tuple(float(v) for v in light_direction)
+        self.program["light_radiance"].value = tuple(float(v) for v in light_radiance)
+        self.program["ambient_radiance"].value = tuple(float(v) for v in ambient_radiance)
+
+    def render_mesh(self, mesh, model, view, projection, material, camera_position, base_color_texture=None, *, light_direction=(0.45, 0.8, 0.35), light_radiance=(4.0, 3.8, 3.5), ambient_radiance=(0.10, 0.12, 0.16)):
+        """Render a Faust Mesh using its UV0 channel and optional sRGB albedo."""
+        if not isinstance(material, Material):
+            raise TypeError("material must be a Faust Material")
+        self._set_scene_uniforms(model, view, projection, material, camera_position, light_direction, light_radiance, ambient_radiance)
+        self.program["base_color_map"].value = 0
+        self.program["use_base_color_map"].value = base_color_texture is not None
+        if base_color_texture is not None:
+            base_color_texture.use(location=0)
+        mesh.render(self.program)
 
     def render_cube(
         self,
@@ -179,31 +215,8 @@ class PBRRenderer:
         if not isinstance(material, Material):
             raise TypeError("material must be a Faust Material")
 
-        self.program["model"].write(np.asarray(model, dtype="f4").T.tobytes())
-        self.program["view"].write(np.asarray(view, dtype="f4").T.tobytes())
-        self.program["projection"].write(
-            np.asarray(projection, dtype="f4").T.tobytes()
-        )
-
-        parameters = material.shader_parameters()
-        self.program["material_base_color"].value = parameters["base_color"]
-        self.program["material_metallic"].value = parameters["metallic"]
-        self.program["material_roughness"].value = parameters["roughness"]
-        self.program["material_emissive"].value = parameters["emissive"]
-
-        self.program["camera_position"].value = tuple(
-            float(value) for value in camera_position
-        )
-        self.program["light_direction"].value = tuple(
-            float(value) for value in light_direction
-        )
-        self.program["light_radiance"].value = tuple(
-            float(value) for value in light_radiance
-        )
-        self.program["ambient_radiance"].value = tuple(
-            float(value) for value in ambient_radiance
-        )
-
+        self._set_scene_uniforms(model, view, projection, material, camera_position, light_direction, light_radiance, ambient_radiance)
+        self.program["use_base_color_map"].value = False
         self.vertex_array.render(mode=moderngl.TRIANGLES)
 
     def release(self) -> None:
