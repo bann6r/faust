@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 
 from engine.material import Material
+from engine.mesh import MeshData
 from engine.scene import DirectionalLight, RenderObject, Scene
 
 
@@ -17,6 +18,12 @@ def test_scene_adds_and_removes_render_objects():
     assert item.model == pytest.approx(np.eye(4))
     scene.remove(item)
     assert len(scene) == 0
+
+
+def test_scene_accepts_cpu_mesh_data():
+    data = MeshData(np.zeros((3, 8), dtype=np.float32), name="triangle")
+    item = Scene().add(data, Material())
+    assert item.mesh is data
 
 
 def test_render_object_rejects_invalid_model():
