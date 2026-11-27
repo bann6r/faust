@@ -7,7 +7,7 @@ The Vulkan backend is imported lazily when Renderer is requested.
 from importlib import import_module
 from pathlib import Path
 
-from .camera import Camera, look_at, perspective, rotation_y
+from .camera import Camera, look_at, perspective, perspective_vulkan, rotation_y
 
 
 _LAZY_EXPORTS = {
@@ -49,6 +49,6 @@ def find_project_asset(*parts):
 
 
 __all__ = [
-    "Camera", "perspective", "look_at", "rotation_y", "find_project_asset",
-    *_LAZY_EXPORTS.keys(),
+    "Camera", "perspective", "perspective_vulkan", "look_at", "rotation_y",
+    "find_project_asset", *_LAZY_EXPORTS.keys(),
 ]
