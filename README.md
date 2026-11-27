@@ -1,44 +1,41 @@
-# Faust
+# faust
 
-Faust is a Python-first, GPU-accelerated forward renderer built on ModernGL.
-The application owns the window and OpenGL context; Faust owns scene data,
-mesh upload, material shading, and draw submission.
+faust is a ~~python-first~~ python gpu accelerated forward renderer ~~built on moderngl~~ PLANNING TO GO FULL VULKAN SHIT
+this rubbish application owns the window and opengl context and the renderer owns scene data, mesh upload and akldsjfa;ldskjfa;sdljfa;sdlkfj
 
-## Current capabilities
+## capabilities
 
-- OpenGL 3.3 core renderer using ModernGL
-- Forward metallic/roughness BRDF with GGX distribution and Smith visibility
-- Mesh instances, materials, directional lighting, perspective cameras
-- FBX import through Assimp/PyAssimp
-- sRGB base-color texture sampling with mipmaps
-- Optional equirectangular EXR background
-- Headless CPU-side camera, material, scene, and capability tests
+- ~~opengl 3.3 core renderer using moderngl~~ why
+- ~~forward metallic/roughness brdf with ggx distribution and smith visibility~~ judgment day
+- ~~mesh instances, materials, directional lighting, perspective cameras~~ judgment day
+- ~~fbx import through pyassimp~~ also judgment day x 2
+- ~~sRGB base-color texture sampling with mipmaps~~ no way
+- ~~optional equirectangular exr background~~ no way
+- ~~headless cpu-side camera, material, scene, and capability tests~~ end of the world
 
-Faust is an engine foundation, not a full Unreal replacement. It currently
-uses one directional key light and a simple ambient fill; it does not yet
-provide shadow maps, clustered lights, skeletal animation, deferred rendering,
-or physically based image-based lighting.
+even though faust is inspired by unreal's renderer, faust is an engine foundation, not a full unreal replacement.
+it currently uses one directional key light and a simple ambient fill; it does not yet provide shadow maps, clustered lights, skeletal animation, deferred rendering, or physically based image-based lighting.
 
 ## Install
 
-Python 3.10+ is recommended.
+~~python 3.10+ is recommended~~ GO FULL PYTHON 3.12+
 
     python -m pip install -r requirements.txt
 
-FBX import needs both PyAssimp and the native Assimp library. See
+~~FBX import needs both PyAssimp and the native Assimp library. See
 [docs/asset_importing.md](docs/asset_importing.md) for setup notes. EXR skyboxes
 need the OpenEXR Python package; the rest of the engine can be imported without
-loading OpenEXR.
+loading OpenEXR.~~ SETUPTOOLS
 
-## Run the sample
+## run the sample
 
     python game.py
 
-Press Escape to close. The sample uses the FBX and textures in assets/.
+press esc to close. ~~the sample uses the FBX and textures in assets/.
 When the EXR skybox cannot be loaded, Faust reports the issue and continues
-with the scene clear color.
+with the scene clear color.~~ SHOUTOUT TO POLY HAVEN
 
-## Use the renderer
+## use the renderer
 
     import moderngl
     from faust import engine
@@ -57,13 +54,13 @@ with the scene clear color.
     renderer.render(scene, camera, viewport=(0, 0, framebuffer_width, framebuffer_height))
     renderer.release()
 
-The caller owns and must release uploaded meshes and textures, plus its window
-and ModernGL context. The Renderer releases only its own GPU resources.
+~~the caller owns and must release uploaded meshes and textures, plus its window
+and ModernGL context. The Renderer releases only its own GPU resources.~~ nvm
 
-## Tests
+## test
 
-Run CPU-side tests with:
+run CPU-side tests with:
 
     python -m pytest -q
 
-These tests do not create a window or require a graphics driver.
+these tests do not create a window or require a graphics driver.
