@@ -88,6 +88,11 @@ def create_scene(context):
             *Path(mesh_config["base_color_texture"]).parts
         )
 
+        # Allocate the renderer before per-mesh vertex arrays. Cleanup runs
+        # in reverse order, so mesh VAOs are released before their shader program.
+        renderer = engine.Renderer(context, clear_color=GPU_CONFIG["clear_color"])
+        allocated.append(renderer)
+
         mesh_data = engine.load_meshes(model_path)
         meshes = [engine.Mesh(context, item) for item in mesh_data]
         allocated.extend(meshes)
@@ -99,9 +104,6 @@ def create_scene(context):
         scene = engine.Scene(light=light)
         for mesh in meshes:
             scene.add(mesh, material, base_color_texture=base_color_texture)
-
-        renderer = engine.Renderer(context, clear_color=GPU_CONFIG["clear_color"])
-        allocated.append(renderer)
 
         skybox = None
         skybox_path = None
