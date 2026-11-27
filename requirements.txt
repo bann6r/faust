@@ -5,3 +5,4 @@ OpenEXR
 Pillow
 pyassimp
 pytest
+setuptools

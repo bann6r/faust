@@ -31,7 +31,7 @@ SKYBOX_CONFIG = {
 }
 
 SCENE_CONFIG = {
-    "camera_position": (0.0, 0.0, 5.0),
+    "camera_position": (-50.0, 0.0, 5.0),
     "camera_target": (0.0, 0.0, 0.0),
     "camera_up": (0.0, 1.0, 0.0),
     "field_of_view": 70.0,
