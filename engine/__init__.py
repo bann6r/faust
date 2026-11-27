@@ -1,19 +1,22 @@
 """Faust engine API.
 
-CPU-side scene and asset types stay importable without loading a GPU runtime.
-The Vulkan backend is imported lazily when Renderer is requested.
+The established ModernGL scene renderer remains the default until the Vulkan
+backend reaches feature parity. VulkanRenderer is available explicitly.
 """
-
 from importlib import import_module
 from pathlib import Path
-
 from .camera import Camera, look_at, perspective, perspective_vulkan, rotation_y
-
 
 _LAZY_EXPORTS = {
     "Material": (".material", "Material"),
+    "PBRRenderer": (".rasterizer", "PBRRenderer"),
+    "Mesh": (".mesh", "Mesh"),
     "MeshData": (".mesh", "MeshData"),
     "load_meshes": (".importer", "load_meshes"),
+    "load_color_texture": (".texture", "load_color_texture"),
+    "Skybox": (".skybox", "Skybox"),
+    "load_exr_rgb": (".skybox", "load_exr_rgb"),
+    "create_skybox_cube": (".skybox", "create_skybox_cube"),
     "Scene": (".scene", "Scene"),
     "RenderObject": (".scene", "RenderObject"),
     "DirectionalLight": (".scene", "DirectionalLight"),
@@ -21,8 +24,9 @@ _LAZY_EXPORTS = {
     "VulkanRenderer": (".vulkan", "VulkanRenderer"),
     "GPUInfo": (".gpu", "GPUInfo"),
     "inspect_device_properties": (".gpu", "inspect_device_properties"),
+    "validate_context": (".gpu", "validate_context"),
+    "inspect_context": (".gpu", "inspect_context"),
 }
-
 
 def __getattr__(name):
     target = _LAZY_EXPORTS.get(name)
@@ -33,10 +37,8 @@ def __getattr__(name):
     globals()[name] = value
     return value
 
-
 def __dir__():
     return sorted(set(globals()) | set(_LAZY_EXPORTS))
-
 
 def find_project_asset(*parts):
     """Find an asset relative to the project root or the current module."""
@@ -46,7 +48,6 @@ def find_project_asset(*parts):
         if candidate.exists():
             return candidate
     return candidates[-1]
-
 
 __all__ = [
     "Camera", "perspective", "perspective_vulkan", "look_at", "rotation_y",
