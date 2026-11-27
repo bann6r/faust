@@ -29,14 +29,15 @@ Not migrated yet:
 - Texture upload, sRGB sampling, and mipmaps
 - PBR shaders, directional-light data, and EXR skyboxes
 - The existing FBX sample scene
+- Vulkan-specific camera projection conventions
 
 The triangle is intentionally procedural: its three vertices are generated
 from `gl_VertexIndex`, so this first pipeline does not hide buffer allocation
-behind an abstraction.
+behind an abstraction. Camera math is still CPU-side and is not used by this sample yet.
 
 ## Requirements
 
-Python dependencies:
+Python 3.10+ and these Python dependencies:
 
 ```sh
 python -m pip install -r requirements.txt
