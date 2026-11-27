@@ -1,7 +1,7 @@
-"""Faust rendering engine public API.
+"""Faust engine API.
 
-The package root intentionally stays lightweight. GPU, asset-import, and EXR
-modules are imported only when their exported objects are first requested.
+CPU-side scene and asset types stay importable without loading a GPU runtime.
+The Vulkan backend is imported lazily when Renderer is requested.
 """
 
 from importlib import import_module
@@ -12,21 +12,15 @@ from .camera import Camera, look_at, perspective, rotation_y
 
 _LAZY_EXPORTS = {
     "Material": (".material", "Material"),
-    "PBRRenderer": (".rasterizer", "PBRRenderer"),
-    "Mesh": (".mesh", "Mesh"),
     "MeshData": (".mesh", "MeshData"),
     "load_meshes": (".importer", "load_meshes"),
-    "load_color_texture": (".texture", "load_color_texture"),
-    "Skybox": (".skybox", "Skybox"),
-    "load_exr_rgb": (".skybox", "load_exr_rgb"),
-    "create_skybox_cube": (".skybox", "create_skybox_cube"),
     "Scene": (".scene", "Scene"),
     "RenderObject": (".scene", "RenderObject"),
     "DirectionalLight": (".scene", "DirectionalLight"),
     "Renderer": (".renderer", "Renderer"),
+    "VulkanRenderer": (".vulkan", "VulkanRenderer"),
     "GPUInfo": (".gpu", "GPUInfo"),
-    "inspect_context": (".gpu", "inspect_context"),
-    "validate_context": (".gpu", "validate_context"),
+    "inspect_device_properties": (".gpu", "inspect_device_properties"),
 }
 
 

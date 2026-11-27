@@ -2,7 +2,7 @@ name: tests
 
 on:
   push:
-    branches: ["main", "refactor/renderer-core"]
+    branches: ["main", "refactor/renderer-core", "vulkan/triangle-backend"]
   pull_request:
     branches: ["main"]
 
@@ -13,9 +13,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
           cache: "pip"
       - name: Install test dependencies
-        run: python -m pip install --upgrade pip numpy moderngl pytest
-      - name: Run tests
+        run: python -m pip install --upgrade pip -r requirements-dev.txt
+      - name: Run CPU-side tests
         run: python -m pytest -q

@@ -1,7 +1,9 @@
 """Camera math and validated perspective-camera state for Faust.
 
-Matrices are row-major NumPy arrays. Upload them to GLSL using matrix.T.tobytes()
-when working with ModernGL's column-major uniform layout.
+Matrices are row-major NumPy arrays. The perspective helper retains the
+previous right-handed OpenGL NDC depth range (-1..1); the first Vulkan triangle
+sample does not consume camera matrices. Convert depth range and viewport Y
+conventions before connecting this camera to Vulkan.
 """
 
 from dataclasses import dataclass
