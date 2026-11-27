@@ -1,14 +1,18 @@
-"""Faust-owned CPU and GPU mesh representations."""
+"""CPU-side mesh data used by the importer and future Vulkan buffer uploads."""
 
 from dataclasses import dataclass
 
-import moderngl
 import numpy as np
 
 
 @dataclass(frozen=True, slots=True)
 class MeshData:
-    """CPU-side triangle data independent of the source file importer."""
+    """Triangle data independent of a graphics API.
+
+    Each vertex contains position(3), normal(3), and UV0(2) float32 values.
+    GPU buffers are intentionally not created here; the Vulkan backend will
+    own their allocation and lifetime.
+    """
 
     vertices: np.ndarray
     name: str = "mesh"
@@ -23,34 +27,3 @@ class MeshData:
         if not np.isfinite(data).all():
             raise ValueError("mesh vertices must be finite")
         object.__setattr__(self, "vertices", np.ascontiguousarray(data))
-
-
-class Mesh:
-    """GPU buffers for a Faust MeshData object."""
-
-    def __init__(self, context, data: MeshData):
-        if not isinstance(data, MeshData):
-            raise TypeError("data must be a Faust MeshData")
-        self.context = context
-        self.name = data.name
-        self.vertex_count = len(data.vertices)
-        self.vertex_buffer = context.buffer(data.vertices.tobytes())
-        self._vertex_arrays = {}
-
-    def vertex_array(self, program):
-        key = id(program)
-        if key not in self._vertex_arrays:
-            self._vertex_arrays[key] = self.context.vertex_array(
-                program,
-                [(self.vertex_buffer, "3f 3f 2f", "in_position", "in_normal", "in_uv")],
-            )
-        return self._vertex_arrays[key]
-
-    def render(self, program):
-        self.vertex_array(program).render(mode=moderngl.TRIANGLES)
-
-    def release(self):
-        for vertex_array in self._vertex_arrays.values():
-            vertex_array.release()
-        self._vertex_arrays.clear()
-        self.vertex_buffer.release()
