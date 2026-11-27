@@ -144,7 +144,7 @@ class VulkanRenderer:
     def _supports_swapchain(self, physical_device):
         extensions = vk.vkEnumerateDeviceExtensionProperties(physical_device, None)
         available = {_decode_name(item.extensionName) for item in extensions}
-        return _decode_name(vk.VK_KHR_SWAPCHAIN_EXTENSION_NAME) in available
+        return "VK_KHR_swapchain" in available
 
     def _has_swapchain_support(self, physical_device):
         get_formats = self._instance_function(
@@ -200,7 +200,7 @@ class VulkanRenderer:
             sType=vk.VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
             queueCreateInfoCount=len(queue_infos),
             pQueueCreateInfos=queue_infos,
-            pEnabledFeatures=vk.VkPhysicalDeviceFeatures(),
+            pEnabledFeatures=[vk.VkPhysicalDeviceFeatures()],
             enabledExtensionCount=1,
             ppEnabledExtensionNames=[vk.VK_KHR_SWAPCHAIN_EXTENSION_NAME],
             enabledLayerCount=0,
@@ -583,7 +583,6 @@ class VulkanRenderer:
         return error.__class__.__name__ in {
             "VkErrorOutOfDateKhr",
             "VkSuboptimalKhr",
-            "VkErrorSurfaceLostKhr",
         }
 
     def draw_frame(self):
@@ -642,6 +641,9 @@ class VulkanRenderer:
         present = self._device_function("vkQueuePresentKHR")
         try:
             present(self.present_queue, present_info)
+            # One frame in flight: wait for the presentation wait to consume
+            # render_finished before re-signaling this binary semaphore.
+            vk.vkQueueWaitIdle(self.present_queue)
         except Exception as error:
             if self._is_swapchain_exception(error):
                 self._recreate_swapchain()
