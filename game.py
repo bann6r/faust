@@ -1,26 +1,17 @@
-"""Faust prototype game entry point.
+"""Faust sample application.
 
-Run from the repository root:
-    python game.py
-
-This file owns the prototype's window/GPU configuration, scene contents,
-and frame loop. Reusable rendering implementation lives in engine/.
+Run from the repository root with: python game.py
+The sample owns GLFW/window lifecycle; Faust owns scene and render submission.
 """
 
 from pathlib import Path
-import math
 import time
 
 import glfw
 import moderngl
-import numpy as np
 
 from faust import engine
 
-
-# ---------------------------------------------------------------------------
-# Game and GPU configuration
-# ---------------------------------------------------------------------------
 
 GAME_CONFIG = {
     "title": "Faust",
@@ -29,17 +20,16 @@ GAME_CONFIG = {
 
 GPU_CONFIG = {
     "vsync": True,
-    "max_fps": 144,       # Used when VSync is disabled.
-    "msaa_samples": 4,    # GLFW default framebuffer multisampling.
+    "max_fps": 144,
+    "msaa_samples": 4,
     "clear_color": (0.025, 0.03, 0.045, 1.0),
 }
 
-# Environment configuration belongs to the game, not the renderer.
 SKYBOX_CONFIG = {
+    "enabled": True,
     "path": "assets/sky.exr",
 }
 
-# Scene asset paths are game configuration; Faust owns import and rendering.
 SCENE_CONFIG = {
     "camera_position": (0.0, 0.0, 5.0),
     "camera_target": (0.0, 0.0, 0.0),
@@ -74,23 +64,13 @@ def create_window():
     glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, 3)
     glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, 3)
     glfw.window_hint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)
-    glfw.window_hint(
-        glfw.SAMPLES,
-        max(0, int(GPU_CONFIG["msaa_samples"])),
-    )
+    glfw.window_hint(glfw.SAMPLES, max(0, int(GPU_CONFIG["msaa_samples"])))
 
     width, height = GAME_CONFIG["window_size"]
-    window = glfw.create_window(
-        width,
-        height,
-        GAME_CONFIG["title"],
-        None,
-        None,
-    )
-
+    window = glfw.create_window(width, height, GAME_CONFIG["title"], None, None)
     if not window:
         glfw.terminate()
-        raise RuntimeError("could not create GLFW window")
+        raise RuntimeError("could not create an OpenGL 3.3 window")
 
     glfw.make_context_current(window)
     glfw.swap_interval(1 if GPU_CONFIG["vsync"] else 0)
@@ -98,120 +78,129 @@ def create_window():
 
 
 def create_scene(context):
-    mesh_config = SCENE_CONFIG["mesh"]
-    material = engine.Material(**mesh_config["material"])
-    model_path = engine.find_project_asset(*Path(mesh_config["path"]).parts)
-    texture_path = engine.find_project_asset(*Path(mesh_config["base_color_texture"]).parts)
-    mesh_data = engine.load_meshes(model_path)
-    meshes = [engine.Mesh(context, item) for item in mesh_data]
-    base_color_texture = engine.load_color_texture(context, texture_path)
+    """Create the demo's CPU scene and GPU resources with rollback on failure."""
+    allocated = []
+    try:
+        mesh_config = SCENE_CONFIG["mesh"]
+        material = engine.Material(**mesh_config["material"])
+        model_path = engine.find_project_asset(*Path(mesh_config["path"]).parts)
+        texture_path = engine.find_project_asset(
+            *Path(mesh_config["base_color_texture"]).parts
+        )
 
-    pbr_renderer = engine.PBRRenderer(context)
-    skybox_path = engine.find_project_asset(*Path(SKYBOX_CONFIG["path"]).parts)
-    skybox = engine.Skybox(context, skybox_path)
-    return material, pbr_renderer, skybox, meshes, base_color_texture, model_path, skybox_path
+        # Allocate the renderer before per-mesh vertex arrays. Cleanup runs
+        # in reverse order, so mesh VAOs are released before their shader program.
+        renderer = engine.Renderer(context, clear_color=GPU_CONFIG["clear_color"])
+        allocated.append(renderer)
+
+        mesh_data = engine.load_meshes(model_path)
+        meshes = [engine.Mesh(context, item) for item in mesh_data]
+        allocated.extend(meshes)
+
+        base_color_texture = engine.load_color_texture(context, texture_path)
+        allocated.append(base_color_texture)
+
+        light = engine.DirectionalLight(**SCENE_CONFIG["lighting"])
+        scene = engine.Scene(light=light)
+        for mesh in meshes:
+            scene.add(mesh, material, base_color_texture=base_color_texture)
+
+        skybox = None
+        skybox_path = None
+        if SKYBOX_CONFIG["enabled"]:
+            skybox_path = engine.find_project_asset(
+                *Path(SKYBOX_CONFIG["path"]).parts
+            )
+            try:
+                skybox = engine.Skybox(context, skybox_path)
+                allocated.append(skybox)
+            except (FileNotFoundError, ImportError, ValueError, RuntimeError) as exc:
+                print(f"Faust: skybox disabled ({exc})")
+
+        return scene, renderer, skybox, allocated, model_path, skybox_path
+    except Exception:
+        for resource in reversed(allocated):
+            try:
+                resource.release()
+            except Exception:
+                pass
+        raise
 
 
 def run():
     window = None
     context = None
     resources = []
-
     try:
         window = create_window()
         context = moderngl.create_context()
+        gpu = engine.validate_context(context, minimum=(3, 3))
 
-        material, pbr_renderer, skybox, meshes, base_color_texture, model_path, skybox_path = create_scene(context)
-        resources.extend((pbr_renderer, skybox, base_color_texture, *meshes))
+        scene, renderer, skybox, resources, model_path, skybox_path = create_scene(context)
+        camera = engine.Camera(
+            position=SCENE_CONFIG["camera_position"],
+            target=SCENE_CONFIG["camera_target"],
+            up=SCENE_CONFIG["camera_up"],
+            fov_y_degrees=SCENE_CONFIG["field_of_view"],
+            near=SCENE_CONFIG["near_clip"],
+            far=SCENE_CONFIG["far_clip"],
+        )
 
         context.enable(moderngl.DEPTH_TEST)
         context.depth_func = "<"
-
-        eye = np.asarray(SCENE_CONFIG["camera_position"], dtype="f4")
-        target = np.asarray(SCENE_CONFIG["camera_target"], dtype="f4")
-        up = np.asarray(SCENE_CONFIG["camera_up"], dtype="f4")
-        view = engine.look_at(eye, target, up)
-
         start_time = glfw.get_time()
         frame_interval = 1.0 / max(1, int(GPU_CONFIG["max_fps"]))
 
         print("Faust initialized")
-        print("GPU:", context.info.get("GL_RENDERER", "Unknown"))
-        print("OpenGL:", context.info.get("GL_VERSION", "Unknown"))
+        print("GPU:", gpu.renderer)
+        print("OpenGL:", gpu.version)
         print("Model:", model_path)
-        print("Imported meshes:", len(meshes))
-        print("Base color texture:", SCENE_CONFIG["mesh"]["base_color_texture"])
-        print("Skybox:", skybox_path)
+        print("Imported mesh instances:", len(scene))
+        print("Skybox:", skybox_path if skybox else "disabled")
         print("VSync:", GPU_CONFIG["vsync"])
-        print("MSAA samples requested:", GPU_CONFIG["msaa_samples"])
 
         while not glfw.window_should_close(window):
             frame_start = time.perf_counter()
             glfw.poll_events()
-
             if glfw.get_key(window, glfw.KEY_ESCAPE) == glfw.PRESS:
                 break
 
             width, height = glfw.get_framebuffer_size(window)
-            if width == 0 or height == 0:
+            if width <= 0 or height <= 0:
                 continue
 
+            camera.resize(width, height)
             context.viewport = (0, 0, width, height)
             context.clear(*GPU_CONFIG["clear_color"], depth=1.0)
 
-            projection = engine.perspective(
-                math.radians(SCENE_CONFIG["field_of_view"]),
-                width / height,
-                SCENE_CONFIG["near_clip"],
-                SCENE_CONFIG["far_clip"],
-            )
+            if skybox is not None:
+                skybox.render(camera.view_matrix, camera.projection_matrix)
 
-            # Draw the environment first, then the scene mesh.
-            skybox.render(view, projection)
-
-            mesh_config = SCENE_CONFIG["mesh"]
             elapsed = glfw.get_time() - start_time
             model = engine.rotation_y(
-                elapsed * mesh_config["rotation_speed"]
+                elapsed * SCENE_CONFIG["mesh"]["rotation_speed"]
             )
+            for item in scene.objects:
+                item.model = model
 
-            lighting = SCENE_CONFIG["lighting"]
-            for mesh in meshes:
-                pbr_renderer.render_mesh(
-                    mesh,
-                    model,
-                    view,
-                    projection,
-                    material,
-                    camera_position=eye,
-                    base_color_texture=base_color_texture,
-                    light_direction=lighting["direction"],
-                    light_radiance=lighting["radiance"],
-                    ambient_radiance=lighting["ambient_radiance"],
-                )
-
+            # The frame was cleared and the optional background was drawn above.
+            renderer.render(scene, camera, clear=False)
             glfw.swap_buffers(window)
 
-            # VSync is the primary limiter when enabled. Otherwise honour
-            # the game's explicit max_fps setting.
             if not GPU_CONFIG["vsync"]:
                 remaining = frame_interval - (time.perf_counter() - frame_start)
-                if remaining > 0:
+                if remaining > 0.0:
                     time.sleep(remaining)
-
     finally:
         for resource in reversed(resources):
             try:
                 resource.release()
             except Exception:
                 pass
-
         if context is not None:
             context.release()
-
         if window is not None:
             glfw.destroy_window(window)
-
         glfw.terminate()
 
 

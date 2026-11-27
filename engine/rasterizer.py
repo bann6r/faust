@@ -23,6 +23,7 @@ in vec2 in_uv;
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
+uniform mat3 normal_matrix;
 
 out vec3 world_position;
 out vec3 world_normal;
@@ -31,7 +32,7 @@ out vec2 texcoord;
 void main() {
     vec4 world = model * vec4(in_position, 1.0);
     world_position = world.xyz;
-    world_normal = normalize(transpose(inverse(mat3(model))) * in_normal);
+    world_normal = normalize(normal_matrix * in_normal);
     texcoord = in_uv;
     gl_Position = projection * view * world;
 }
@@ -98,7 +99,8 @@ void main() {
     vec3 n = normalize(world_normal);
     vec3 v = normalize(camera_position - world_position);
     vec3 l = normalize(light_direction);
-    vec3 h = normalize(v + l);
+    vec3 half_vector = v + l;
+    vec3 h = length(half_vector) > EPSILON ? normalize(half_vector) : n;
 
     float n_dot_v = max(dot(n, v), 0.001);
     float n_dot_l = max(dot(n, l), 0.0);
@@ -169,25 +171,75 @@ class PBRRenderer:
             vertex_shader=PBR_VERTEX_SHADER,
             fragment_shader=PBR_FRAGMENT_SHADER,
         )
-        self.vertex_buffer = context.buffer(create_cube_geometry().tobytes())
-        self.vertex_array = context.vertex_array(
-            self.program,
-            [(self.vertex_buffer, "3f 3f 2f", "in_position", "in_normal", "in_uv")],
-        )
+        self.vertex_buffer = None
+        self.vertex_array = None
+        try:
+            self.vertex_buffer = context.buffer(create_cube_geometry().tobytes())
+            self.vertex_array = context.vertex_array(
+                self.program,
+                [(self.vertex_buffer, "3f 3f 2f", "in_position", "in_normal", "in_uv")],
+            )
+        except Exception:
+            self.release()
+            raise
 
-    def _set_scene_uniforms(self, model, view, projection, material, camera_position, light_direction, light_radiance, ambient_radiance):
-        self.program["model"].write(np.asarray(model, dtype="f4").T.tobytes())
-        self.program["view"].write(np.asarray(view, dtype="f4").T.tobytes())
-        self.program["projection"].write(np.asarray(projection, dtype="f4").T.tobytes())
+    @staticmethod
+    def _finite_vec3(name, value, *, nonzero=False):
+        try:
+            vector = np.asarray(value, dtype=np.float32)
+        except (TypeError, ValueError) as exc:
+            raise TypeError(f"{name} must contain three numeric values") from exc
+        if vector.shape != (3,) or not np.isfinite(vector).all():
+            raise ValueError(f"{name} must be a finite 3D vector")
+        if nonzero and float(np.linalg.norm(vector)) <= 1e-8:
+            raise ValueError(f"{name} must not be the zero vector")
+        return vector
+
+    @staticmethod
+    def _matrix4(name, value):
+        try:
+            matrix = np.asarray(value, dtype=np.float32)
+        except (TypeError, ValueError) as exc:
+            raise TypeError(f"{name} must be a numeric 4x4 matrix") from exc
+        if matrix.shape != (4, 4) or not np.isfinite(matrix).all():
+            raise ValueError(f"{name} must be a finite 4x4 matrix")
+        return matrix
+
+    def _set_scene_uniforms(
+        self, model, view, projection, material, camera_position,
+        light_direction, light_radiance, ambient_radiance,
+    ):
+        model_matrix = self._matrix4("model", model)
+        view_matrix = self._matrix4("view", view)
+        projection_matrix = self._matrix4("projection", projection)
+        linear_transform = model_matrix[:3, :3]
+        determinant = float(np.linalg.det(linear_transform))
+        if not np.isfinite(determinant) or abs(determinant) <= 1e-10:
+            raise ValueError("model transform must have a non-singular 3x3 basis")
+        normal_matrix = np.linalg.inv(linear_transform).T.astype("f4")
+
+        camera = self._finite_vec3("camera_position", camera_position)
+        direction = self._finite_vec3("light_direction", light_direction, nonzero=True)
+        direction /= np.linalg.norm(direction)
+        radiance = self._finite_vec3("light_radiance", light_radiance)
+        ambient = self._finite_vec3("ambient_radiance", ambient_radiance)
+        if np.any(radiance < 0.0) or np.any(ambient < 0.0):
+            raise ValueError("light radiance values must be non-negative")
+
+        self.program["model"].write(model_matrix.T.tobytes())
+        self.program["view"].write(view_matrix.T.tobytes())
+        self.program["projection"].write(projection_matrix.T.tobytes())
+        self.program["normal_matrix"].write(normal_matrix.T.tobytes())
+
         parameters = material.shader_parameters()
         self.program["material_base_color"].value = parameters["base_color"]
         self.program["material_metallic"].value = parameters["metallic"]
         self.program["material_roughness"].value = parameters["roughness"]
         self.program["material_emissive"].value = parameters["emissive"]
-        self.program["camera_position"].value = tuple(float(v) for v in camera_position)
-        self.program["light_direction"].value = tuple(float(v) for v in light_direction)
-        self.program["light_radiance"].value = tuple(float(v) for v in light_radiance)
-        self.program["ambient_radiance"].value = tuple(float(v) for v in ambient_radiance)
+        self.program["camera_position"].value = tuple(float(v) for v in camera)
+        self.program["light_direction"].value = tuple(float(v) for v in direction)
+        self.program["light_radiance"].value = tuple(float(v) for v in radiance)
+        self.program["ambient_radiance"].value = tuple(float(v) for v in ambient)
 
     def render_mesh(self, mesh, model, view, projection, material, camera_position, base_color_texture=None, *, light_direction=(0.45, 0.8, 0.35), light_radiance=(4.0, 3.8, 3.5), ambient_radiance=(0.10, 0.12, 0.16)):
         """Render a Faust Mesh using its UV0 channel and optional sRGB albedo."""
@@ -220,6 +272,11 @@ class PBRRenderer:
         self.vertex_array.render(mode=moderngl.TRIANGLES)
 
     def release(self) -> None:
-        self.vertex_array.release()
-        self.vertex_buffer.release()
-        self.program.release()
+        """Release renderer-owned GPU resources; safe to call more than once."""
+        for name in ("vertex_array", "vertex_buffer", "program"):
+            resource = getattr(self, name, None)
+            if resource is not None:
+                try:
+                    resource.release()
+                finally:
+                    setattr(self, name, None)
