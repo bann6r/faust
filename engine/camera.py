@@ -1,9 +1,8 @@
 """Camera math and validated perspective-camera state for Faust.
 
-Matrices are row-major NumPy arrays. The perspective helper retains the
-previous right-handed OpenGL NDC depth range (-1..1); the first Vulkan triangle
-sample does not consume camera matrices. Convert depth range and viewport Y
-conventions before connecting this camera to Vulkan.
+Matrices are row-major NumPy arrays and use a right-handed camera looking down
+-Z. OpenGL and Vulkan use different clip-space depth ranges, so both projection
+conventions are exposed explicitly instead of silently mixing them.
 """
 
 from dataclasses import dataclass
@@ -30,12 +29,8 @@ def _unit(name, value):
     return vector / length
 
 
-def perspective(fov_y, aspect, near, far):
-    """Return an OpenGL right-handed perspective projection matrix.
-
-    fov_y is in radians. The camera looks down -Z and clip depth is -1..1.
-    """
-    values = (float(fov_y), float(aspect), float(near), float(far))
+def _projection_parameters(fov_y, aspect, near, far):
+    values = tuple(float(value) for value in (fov_y, aspect, near, far))
     fov_y, aspect, near, far = values
     if not all(math.isfinite(value) for value in values):
         raise ValueError("projection parameters must be finite")
@@ -45,7 +40,15 @@ def perspective(fov_y, aspect, near, far):
         raise ValueError("aspect must be greater than zero")
     if near <= 0.0 or far <= near:
         raise ValueError("clip planes must satisfy 0 < near < far")
+    return fov_y, aspect, near, far
 
+
+def perspective(fov_y, aspect, near, far):
+    """Return a right-handed OpenGL projection (NDC depth -1..1).
+
+    fov_y is in radians. The camera looks down -Z.
+    """
+    fov_y, aspect, near, far = _projection_parameters(fov_y, aspect, near, far)
     focal = 1.0 / math.tan(fov_y * 0.5)
     return np.asarray(
         (
@@ -53,6 +56,26 @@ def perspective(fov_y, aspect, near, far):
             (0.0, focal, 0.0, 0.0),
             (0.0, 0.0, (far + near) / (near - far),
              (2.0 * far * near) / (near - far)),
+            (0.0, 0.0, -1.0, 0.0),
+        ),
+        dtype=np.float32,
+    )
+
+
+def perspective_vulkan(fov_y, aspect, near, far):
+    """Return a right-handed Vulkan projection (NDC depth 0..1).
+
+    The Y scale is negated to account for Vulkan's framebuffer Y direction
+    when using a positive-height viewport. fov_y is in radians.
+    """
+    fov_y, aspect, near, far = _projection_parameters(fov_y, aspect, near, far)
+    focal = 1.0 / math.tan(fov_y * 0.5)
+    return np.asarray(
+        (
+            (focal / aspect, 0.0, 0.0, 0.0),
+            (0.0, -focal, 0.0, 0.0),
+            (0.0, 0.0, far / (near - far),
+             (far * near) / (near - far)),
             (0.0, 0.0, -1.0, 0.0),
         ),
         dtype=np.float32,
@@ -137,7 +160,15 @@ class Camera:
 
     @property
     def projection_matrix(self):
+        """OpenGL projection matrix (NDC depth -1..1)."""
         return perspective(
+            math.radians(self.fov_y_degrees), self.aspect, self.near, self.far
+        )
+
+    @property
+    def vulkan_projection_matrix(self):
+        """Vulkan projection matrix (NDC depth 0..1, framebuffer Y flipped)."""
+        return perspective_vulkan(
             math.radians(self.fov_y_degrees), self.aspect, self.near, self.far
         )
 

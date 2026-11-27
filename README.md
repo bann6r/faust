@@ -1,116 +1,76 @@
-# Faust
+# faust
 
-Faust is a Python-first renderer/engine project moving from ModernGL to
-**Vulkan**. The current branch is the first backend milestone: it creates a
-Vulkan instance and GLFW surface, selects a graphics/present device, creates a
-swapchain and graphics pipeline, records command buffers, synchronizes frames,
-and presents a triangle.
+faust is a ~~python-first~~ python GPU accelerated forward renderer ~~built on moderngl~~ PLANNING TO GO FULL VULKAN SHIT
 
-This is an engine foundation, not a full Unreal replacement.
+this rubbish application owns the window and Vulkan context, and the renderer owns scene data, mesh upload and akldsjfa;ldskjfa;sdljfa;sdlkfj
 
-## Current status
+## capabilities
 
-Implemented in the Vulkan migration:
+- ~~opengl 3.3 core renderer using moderngl~~ why
+- ~~forward metallic/roughness brdf with ggx distribution and smith visibility~~ judgment day
+- ~~mesh instances, materials, directional lighting, perspective cameras~~ judgment day
+- ~~fbx import through pyassimp~~ also judgment day x 2
+- ~~sRGB base-color texture sampling with mipmaps~~ no way
+- ~~optional equirectangular exr background~~ no way
+- ~~headless cpu-side camera, material, scene, and capability tests~~ end of the world
+- ~~Vulkan instance, device, swapchain, render pass and graphics pipeline~~ send the addy of the creator's house
+- ~~command buffers, synchronization and presentation~~ come on man
+- ~~one (1) procedural triangle. groundbreaking.~~ no
 
-- GLFW window with no OpenGL context
-- Vulkan instance, surface, physical device, logical device, and queues
-- Swapchain, image views, render pass, and graphics pipeline
-- GLSL shaders compiled to SPIR-V with `glslc`
-- Command buffers, acquire/submit/present, and a frame fence
-- Swapchain recreation when the framebuffer changes size
-- CPU-side camera, material, scene, and FBX mesh-data types remain separate
-  from the graphics API
+even though faust is inspired by Unreal's renderer, faust is an engine foundation, not a full unreal replacement
 
-Not migrated yet:
+the Vulkan backend currently knows how to present a triangle. the CPU-side camera, scene, material, and mesh systems exist, but the renderer has not yet figured out how to use them.
 
-- Vulkan vertex/index buffer allocation and mesh upload
-- Depth buffering and multiple render objects
-- Descriptor sets, uniform buffers, and material binding
-- Texture upload, sRGB sampling, and mipmaps
-- PBR shaders, directional-light data, and EXR skyboxes
-- The existing FBX sample scene
-- Vulkan-specific camera projection conventions
+still missing:
+- GPU mesh and index buffers
+- depth buffering and multiple objects
+- descriptor sets and uniform buffers
+- texture upload and material binding
+- PBR and image-based lighting
+- shadow maps
+- actually rendering the FBX sample
 
-The triangle is intentionally procedural: its three vertices are generated
-from `gl_VertexIndex`, so this first pipeline does not hide buffer allocation
-behind an abstraction. Camera math is still CPU-side and is not used by this sample yet.
+we have a roadmap. unfortunately, the roadmap does not render anything either.
 
-## Requirements
+see [docs/renderer-roadmap.md](docs/renderer-roadmap.md) for the ~~boring technical details~~ sacred scrolls.
 
-Python 3.10+ and these Python dependencies:
+## Install
 
-```sh
-python -m pip install -r requirements.txt
-```
+~~python 3.10+ is recommended~~ GO FULL PYTHON 3.12+
 
-Faust also needs a system Vulkan loader and a Vulkan-capable graphics driver.
-Install the Vulkan SDK (or equivalent development tools) and make
-`glslc` available on `PATH`; the sample compiles the checked-in GLSL shaders
-to temporary SPIR-V files at startup.
+    python -m pip install -r requirements.txt
 
-For optional FBX/texture asset-import work:
+~~FBX import needs both PyAssimp and the native Assimp library. See
+[docs/asset_importing.md](docs/asset_importing.md) for setup notes. EXR skyboxes
+need the OpenEXR Python package; the rest of the engine can be imported without
+loading OpenEXR.~~ SETUPTOOLS
 
-```sh
-python -m pip install -r requirements-assets.txt
-```
+you will also need Vulkan support and `glslc` available on your PATH. good luck.
 
-PyAssimp additionally requires the native Assimp library. The Python package
-alone does not provide that parser.
+## run the sample
 
-## Run the Vulkan sample
+    python game.py
 
-```sh
-python game.py
-```
+press esc to close. ~~the sample uses the FBX and textures in assets/.
+When the EXR skybox cannot be loaded, Faust reports the issue and continues
+with the scene clear color.~~ SHOUTOUT TO POLY HAVEN
 
-The sample opens a 1280×720 window and draws an orange triangle. Press Escape
-to close it. The application owns GLFW and the window; `VulkanRenderer` owns
-the Vulkan instance, surface, device, swapchain, pipeline, command buffers,
-and synchronization objects.
+if you see a triangle, everything is working. probably.
 
-## Public API
+## architecture
 
-The CPU-side types remain importable without creating a Vulkan instance:
+python handles engine orchestration, scene management and asset handling. Vulkan and GLSL handle the actual rendering.
 
-```python
-from faust import engine
+the goal is realistic, lightweight and powerful. ~~three words that will surely not cause scope creep~~ what the fuck
 
-camera = engine.Camera(position=(0, 0, 5), target=(0, 0, 0))
-scene = engine.Scene()
-material = engine.Material()
-```
+## test
 
-The current `Renderer` is the Vulkan renderer and takes a GLFW window:
+run CPU-side tests with:
 
-```python
-import glfw
-from faust import engine
+    python -m pytest -q
 
-if not glfw.init():
-    raise RuntimeError("could not initialize GLFW")
+these tests do not create a window or require a graphics driver.
 
-glfw.window_hint(glfw.CLIENT_API, glfw.NO_API)
-window = glfw.create_window(1280, 720, "Faust", None, None)
-if window is None:
-    glfw.terminate()
-    raise RuntimeError("could not create window")
+---
 
-try:
-    with engine.Renderer(window) as renderer:
-        while not glfw.window_should_close(window):
-            glfw.poll_events()
-            renderer.draw_frame()
-finally:
-    glfw.destroy_window(window)
-    glfw.terminate()
-```
-
-## Tests
-
-The test suite is CPU-only; it does not create a window or require a Vulkan
-driver:
-
-```sh
-python -m pip install -r requirements-dev.txt
-python -m pytest -q
-```
+faust IS IN WIP btw.
