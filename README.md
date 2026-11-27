@@ -1,39 +1,43 @@
 # Faust
 
-Faust is a Python-first renderer/engine project moving from ModernGL to
-**Vulkan**. The current branch is the first backend milestone: it creates a
-Vulkan instance and GLFW surface, selects a graphics/present device, creates a
-swapchain and graphics pipeline, records command buffers, synchronizes frames,
-and presents a triangle.
+Faust is a Python-first renderer project built around **Vulkan**. The current
+backend milestone creates a Vulkan instance and GLFW surface, selects a
+graphics/present device, creates a swapchain and triangle graphics pipeline,
+records command buffers, synchronizes frames, and presents a triangle.
 
 This is an engine foundation, not a full Unreal replacement.
 
 ## Current status
 
-Implemented in the Vulkan migration:
+Implemented:
 
 - GLFW window with no OpenGL context
 - Vulkan instance, surface, physical device, logical device, and queues
 - Swapchain, image views, render pass, and graphics pipeline
 - GLSL shaders compiled to SPIR-V with `glslc`
-- Command buffers, acquire/submit/present, and a frame fence
+- Command buffers, acquire/submit/present, and frame synchronization
 - Swapchain recreation when the framebuffer changes size
-- CPU-side camera, material, scene, and FBX mesh-data types remain separate
-  from the graphics API
+- CPU-side camera, material, scene, and FBX mesh-data types independent of Vulkan
+- Explicit OpenGL and Vulkan camera projection matrices; Vulkan uses 0..1 clip
+  depth and a framebuffer-Y correction
 
-Not migrated yet:
+Not implemented in the Vulkan backend:
 
-- Vulkan vertex/index buffer allocation and mesh upload
+- GPU vertex/index buffers and mesh upload
 - Depth buffering and multiple render objects
 - Descriptor sets, uniform buffers, and material binding
-- Texture upload, sRGB sampling, and mipmaps
-- PBR shaders, directional-light data, and EXR skyboxes
-- The existing FBX sample scene
-- Vulkan-specific camera projection conventions
+- Texture upload, sRGB sampling, samplers, and mipmaps
+- PBR shaders and directional-light binding
+- HDR/EXR environment decoding and image-based lighting
+- Shadows, GPU profiling, and scalable scene submission
+- Rendering the existing FBX sample scene
 
 The triangle is intentionally procedural: its three vertices are generated
-from `gl_VertexIndex`, so this first pipeline does not hide buffer allocation
-behind an abstraction. Camera math is still CPU-side and is not used by this sample yet.
+from `gl_VertexIndex`. CPU camera and scene data are not consumed by the
+current sample yet.
+
+See [the renderer roadmap](docs/renderer-roadmap.md) for the ordered
+implementation plan and testable completion criteria.
 
 ## Requirements
 
@@ -44,9 +48,9 @@ python -m pip install -r requirements.txt
 ```
 
 Faust also needs a system Vulkan loader and a Vulkan-capable graphics driver.
-Install the Vulkan SDK (or equivalent development tools) and make
-`glslc` available on `PATH`; the sample compiles the checked-in GLSL shaders
-to temporary SPIR-V files at startup.
+Install the Vulkan SDK (or equivalent development tools) and make `glslc`
+available on `PATH`; the sample compiles the checked-in GLSL shaders to
+temporary SPIR-V files at startup.
 
 For optional FBX/texture asset-import work:
 
@@ -70,12 +74,13 @@ and synchronization objects.
 
 ## Public API
 
-The CPU-side types remain importable without creating a Vulkan instance:
+CPU-side types remain importable without creating a Vulkan instance:
 
 ```python
 from faust import engine
 
 camera = engine.Camera(position=(0, 0, 5), target=(0, 0, 0))
+projection = camera.vulkan_projection_matrix
 scene = engine.Scene()
 material = engine.Material()
 ```
