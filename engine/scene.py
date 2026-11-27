@@ -1,4 +1,4 @@
-"""CPU-side scene descriptions, independent of OpenGL resources."""
+"""CPU-side scene descriptions, independent of Vulkan resources."""
 
 from dataclasses import dataclass, field
 import math
@@ -52,7 +52,7 @@ class DirectionalLight:
 
 @dataclass(slots=True)
 class RenderObject:
-    """One mesh instance and its material/model state."""
+    """One CPU mesh instance and its material/model state."""
 
     mesh: object
     material: Material
@@ -60,15 +60,16 @@ class RenderObject:
     base_color_texture: object = None
 
     def __post_init__(self):
-        if not callable(getattr(self.mesh, "render", None)):
-            raise TypeError("mesh must provide a render(program) method")
+        # Accept CPU MeshData (vertices) or a future backend-owned mesh object.
+        if not (hasattr(self.mesh, "vertices") or callable(getattr(self.mesh, "render", None))):
+            raise TypeError("mesh must be Faust mesh data or a backend mesh resource")
         if not isinstance(self.material, Material):
             raise TypeError("material must be a Faust Material")
         self.model = _matrix4(self.model)
 
 
 class Scene:
-    """A small forward-rendered scene with one directional key light."""
+    """A CPU scene description with one directional key light."""
 
     def __init__(self, light=None):
         self.light = light if light is not None else DirectionalLight()
