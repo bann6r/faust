@@ -1,3 +1,9 @@
 glfw
+moderngl
 vulkan
 numpy
+OpenEXR
+Pillow
+pyassimp
+pytest
+setuptools
