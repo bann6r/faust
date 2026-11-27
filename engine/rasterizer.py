@@ -272,6 +272,11 @@ class PBRRenderer:
         self.vertex_array.render(mode=moderngl.TRIANGLES)
 
     def release(self) -> None:
-        self.vertex_array.release()
-        self.vertex_buffer.release()
-        self.program.release()
+        """Release renderer-owned GPU resources; safe to call more than once."""
+        for name in ("vertex_array", "vertex_buffer", "program"):
+            resource = getattr(self, name, None)
+            if resource is not None:
+                try:
+                    resource.release()
+                finally:
+                    setattr(self, name, None)
