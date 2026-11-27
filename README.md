@@ -2,35 +2,25 @@
 
 faust is a ~~python-first~~ python GPU accelerated forward renderer ~~built on moderngl~~ PLANNING TO GO FULL VULKAN SHIT
 
-this rubbish application owns the window and Vulkan context, and the renderer owns scene data, mesh upload and akldsjfa;ldskjfa;sdljfa;sdlkfj
+this rubbish application owns the window and OpenGL context for the currently working sample. the Vulkan backend is being built alongside it, because apparently one graphics API wasn't enough.
 
 ## capabilities
 
-- ~~opengl 3.3 core renderer using moderngl~~ why
-- ~~forward metallic/roughness brdf with ggx distribution and smith visibility~~ judgment day
-- ~~mesh instances, materials, directional lighting, perspective cameras~~ judgment day
-- ~~fbx import through pyassimp~~ also judgment day x 2
-- ~~sRGB base-color texture sampling with mipmaps~~ no way
-- ~~optional equirectangular exr background~~ no way
-- ~~headless cpu-side camera, material, scene, and capability tests~~ end of the world
-- ~~Vulkan instance, device, swapchain, render pass and graphics pipeline~~ send the addy of the creator's house
-- ~~command buffers, synchronization and presentation~~ come on man
-- ~~one (1) procedural triangle. groundbreaking.~~ no
+- OpenGL 3.3 forward metallic/roughness renderer (GGX + Smith)
+- mesh instances, materials, directional lighting, perspective cameras
+- FBX import through pyassimp
+- sRGB base-color texture sampling with mipmaps
+- optional equirectangular EXR background
+- headless CPU-side camera, material, scene, and capability tests
+- Vulkan instance, device, swapchain, render pass and graphics pipeline
+- Vulkan command buffers, synchronization and presentation
+- ~~one (1) procedural triangle. groundbreaking.~~ currently the Vulkan sample
 
-even though faust is inspired by Unreal's renderer, faust is an engine foundation, not a full unreal replacement
+even though faust is inspired by Unreal's renderer, faust is an engine foundation, not a full Unreal replacement.
 
-the Vulkan backend currently knows how to present a triangle. the CPU-side camera, scene, material, and mesh systems exist, but the renderer has not yet figured out how to use them.
+**Important:** `python game.py` runs the existing scene renderer and shows the FBX bottle with its texture and optional EXR skybox. The Vulkan backend is still an early triangle-only prototype; it has not replaced the scene renderer yet.
 
-still missing:
-- GPU mesh and index buffers
-- depth buffering and multiple objects
-- descriptor sets and uniform buffers
-- texture upload and material binding
-- PBR and image-based lighting
-- shadow maps
-- actually rendering the FBX sample
-
-we have a roadmap. unfortunately, the roadmap does not render anything either.
+the plan is to move the existing scene features to Vulkan one by one, without deleting the working demo before the replacement can do the same job. revolutionary concept, apparently.
 
 see [docs/renderer-roadmap.md](docs/renderer-roadmap.md) for the ~~boring technical details~~ sacred scrolls.
 
@@ -40,36 +30,27 @@ see [docs/renderer-roadmap.md](docs/renderer-roadmap.md) for the ~~boring techni
 
     python -m pip install -r requirements.txt
 
-~~FBX import needs both PyAssimp and the native Assimp library. See
-[docs/asset_importing.md](docs/asset_importing.md) for setup notes. EXR skyboxes
-need the OpenEXR Python package; the rest of the engine can be imported without
-loading OpenEXR.~~ SETUPTOOLS
+FBX import needs PyAssimp and the native Assimp library. See [docs/asset_importing.md](docs/asset_importing.md). EXR skyboxes need OpenEXR.
 
-you will also need Vulkan support and `glslc` available on your PATH. good luck.
+Vulkan development additionally needs the Vulkan SDK and `glslc` on PATH.
 
 ## run the sample
 
     python game.py
 
-press esc to close. ~~the sample uses the FBX and textures in assets/.
-When the EXR skybox cannot be loaded, Faust reports the issue and continues
-with the scene clear color.~~ SHOUTOUT TO POLY HAVEN
+press esc to close. SHOUTOUT TO POLY HAVEN
 
-if you see a triangle, everything is working. probably.
+this restores the pre-migration sample: FBX bottle, base-color texture, directional light, camera, rotation, and optional EXR skybox.
 
-## architecture
+to run the tiny Vulkan bring-up sample instead:
 
-python handles engine orchestration, scene management and asset handling. Vulkan and GLSL handle the actual rendering.
-
-the goal is realistic, lightweight and powerful. ~~three words that will surely not cause scope creep~~ what the fuck
+    python game_vulkan.py
 
 ## test
 
-run CPU-side tests with:
-
     python -m pytest -q
 
-these tests do not create a window or require a graphics driver.
+CPU-side tests do not create a window or require a graphics driver.
 
 ---
 
