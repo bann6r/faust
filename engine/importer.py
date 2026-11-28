@@ -17,7 +17,9 @@ except ImportError:  # Supports direct execution of engine/__init__.py.
 
 # Keep the Windows DLL search-directory handle alive for the process lifetime.
 _ASSIMP_DLL_DIRECTORY_HANDLE = None
-_DEFAULT_ASSIMP_DLL = (
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+_PROJECT_ASSIMP_DLL = _PROJECT_ROOT / "assimp-vc145-mt.dll"
+_DOWNLOADS_ASSIMP_DLL = (
     Path.home()
     / "Downloads"
     / "windows-x64-v6.0.6"
@@ -49,10 +51,14 @@ def _find_assimp_dll():
             )
         return candidate.resolve()
 
-    if _DEFAULT_ASSIMP_DLL.is_file():
-        return _DEFAULT_ASSIMP_DLL.resolve()
+    # Prefer a DLL committed/copied into the Faust repository root.
+    if _PROJECT_ASSIMP_DLL.is_file():
+        return _PROJECT_ASSIMP_DLL.resolve()
 
-    candidates = sorted(_DEFAULT_ASSIMP_DLL.parent.glob("assimp*.dll"))
+    if _DOWNLOADS_ASSIMP_DLL.is_file():
+        return _DOWNLOADS_ASSIMP_DLL.resolve()
+
+    candidates = sorted(_DOWNLOADS_ASSIMP_DLL.parent.glob("assimp*.dll"))
     if candidates:
         return candidates[0].resolve()
     return None
@@ -81,7 +87,8 @@ def _load_pyassimp():
     if dll_path is None:
         raise RuntimeError(
             "Faust could not find the Assimp DLL. Expected "
-            f"{_DEFAULT_ASSIMP_DLL}, or set ASSIMP_LIBRARY_DIR to the DLL "
+            f"{_PROJECT_ASSIMP_DLL} (or {_DOWNLOADS_ASSIMP_DLL}), "
+            "or set ASSIMP_LIBRARY_DIR to the DLL "
             "file or its containing directory."
         )
 
