@@ -1,7 +1,11 @@
 """FBX/mesh import boundary. Assimp parses files; Faust owns the resulting data."""
 
 from contextlib import contextmanager
+import ctypes
+import ctypes.util
+import os
 from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 
@@ -11,16 +15,126 @@ except ImportError:  # Supports direct execution of engine/__init__.py.
     from mesh import MeshData
 
 
-@contextmanager
-def _open_scene(path):
+# Keep the Windows DLL search-directory handle alive for the process lifetime.
+_ASSIMP_DLL_DIRECTORY_HANDLE = None
+_DEFAULT_ASSIMP_DLL = (
+    Path.home()
+    / "Downloads"
+    / "windows-x64-v6.0.6"
+    / "Release"
+    / "assimp-vc145-mt.dll"
+)
+
+
+def _find_assimp_dll():
+    """Resolve the native Assimp DLL without requiring a global PATH edit.
+
+    ASSIMP_LIBRARY_DIR may point either to the DLL itself or to its containing
+    directory. The user's local Windows installation is the default fallback.
+    """
+    configured = os.environ.get("ASSIMP_LIBRARY_DIR")
+    if configured:
+        configured_path = Path(configured).expanduser()
+        if configured_path.is_file():
+            candidate = configured_path
+        elif configured_path.is_dir():
+            candidates = sorted(configured_path.glob("assimp*.dll"))
+            candidate = candidates[0] if candidates else None
+        else:
+            candidate = None
+        if candidate is None or not candidate.is_file():
+            raise FileNotFoundError(
+                "ASSIMP_LIBRARY_DIR does not contain an Assimp DLL: "
+                f"{configured_path}"
+            )
+        return candidate.resolve()
+
+    if _DEFAULT_ASSIMP_DLL.is_file():
+        return _DEFAULT_ASSIMP_DLL.resolve()
+
+    candidates = sorted(_DEFAULT_ASSIMP_DLL.parent.glob("assimp*.dll"))
+    if candidates:
+        return candidates[0].resolve()
+    return None
+
+
+def _load_pyassimp():
+    """Load PyAssimp while directing its native-library lookup to our DLL."""
+    global _ASSIMP_DLL_DIRECTORY_HANDLE
+
+    if os.name != "nt":
+        try:
+            import pyassimp
+            from pyassimp import postprocess
+            return pyassimp, postprocess
+        except ImportError as exc:
+            raise ImportError(
+                "FBX import requires PyAssimp and the native Assimp library. "
+                "See docs/asset_importing.md."
+            ) from exc
+
     try:
-        import pyassimp
-        from pyassimp import postprocess
+        dll_path = _find_assimp_dll()
+    except FileNotFoundError as exc:
+        raise RuntimeError(str(exc)) from exc
+
+    if dll_path is None:
+        raise RuntimeError(
+            "Faust could not find the Assimp DLL. Expected "
+            f"{_DEFAULT_ASSIMP_DLL}, or set ASSIMP_LIBRARY_DIR to the DLL "
+            "file or its containing directory."
+        )
+
+    if _ASSIMP_DLL_DIRECTORY_HANDLE is None:
+        add_dll_directory = getattr(os, "add_dll_directory", None)
+        if add_dll_directory is not None:
+            _ASSIMP_DLL_DIRECTORY_HANDLE = add_dll_directory(str(dll_path.parent))
+
+    # PyAssimp versions differ: some call ctypes.CDLL directly, while others
+    # use ctypes.util.find_library. Redirect either lookup only while PyAssimp
+    # initializes, and restore the standard ctypes functions immediately.
+    original_cdll = ctypes.CDLL
+    original_find_library = ctypes.util.find_library
+
+    def assimp_cdll(name, *args, **kwargs):
+        try:
+            requested = os.fsdecode(name)
+        except (TypeError, ValueError):
+            requested = ""
+        if "assimp" in Path(requested).name.lower():
+            name = str(dll_path)
+        return original_cdll(name, *args, **kwargs)
+
+    def assimp_find_library(name):
+        if "assimp" in str(name).lower():
+            return str(dll_path)
+        return original_find_library(name)
+
+    try:
+        with patch.object(ctypes, "CDLL", assimp_cdll), patch.object(
+            ctypes.util, "find_library", assimp_find_library
+        ):
+            import pyassimp
+            from pyassimp import postprocess
     except ImportError as exc:
         raise ImportError(
-            "FBX import requires PyAssimp and the native Assimp library. "
-            "See docs/asset_importing.md."
+            "FBX import requires PyAssimp. Install the Python package with "
+            "python -m pip install pyassimp."
         ) from exc
+    except OSError as exc:
+        raise RuntimeError(
+            f"Faust found {dll_path}, but Windows could not load it. "
+            "Check that the DLL matches this Python interpreter's "
+            "architecture and that its Visual C++ runtime dependencies "
+            f"are available. Original error: {exc}"
+        ) from exc
+
+    return pyassimp, postprocess
+
+
+@contextmanager
+def _open_scene(path):
+    pyassimp, postprocess = _load_pyassimp()
 
     flags = (
         postprocess.aiProcess_Triangulate
