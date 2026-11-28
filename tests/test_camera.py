@@ -3,7 +3,7 @@ import math
 import numpy as np
 import pytest
 
-from engine.camera import Camera, look_at, perspective, rotation_y
+from engine.camera import Camera, look_at, perspective, perspective_vulkan, rotation_y
 
 
 def test_perspective_matrix_has_expected_shape_and_values():
@@ -15,6 +15,16 @@ def test_perspective_matrix_has_expected_shape_and_values():
     assert matrix[3, 2] == pytest.approx(-1.0)
 
 
+def test_vulkan_perspective_maps_clip_planes_to_zero_and_one():
+    near, far = 0.1, 100.0
+    matrix = perspective_vulkan(math.radians(90), 2.0, near, far)
+    near_clip = matrix @ np.asarray((0.0, 0.0, -near, 1.0))
+    far_clip = matrix @ np.asarray((0.0, 0.0, -far, 1.0))
+    assert near_clip[2] / near_clip[3] == pytest.approx(0.0, abs=1e-6)
+    assert far_clip[2] / far_clip[3] == pytest.approx(1.0, abs=1e-6)
+    assert matrix[1, 1] < 0.0
+
+
 @pytest.mark.parametrize(
     "args",
     [
@@ -23,11 +33,17 @@ def test_perspective_matrix_has_expected_shape_and_values():
         (1.0, 0.0, 0.1, 10.0),
         (1.0, 1.0, 0.0, 10.0),
         (1.0, 1.0, 10.0, 1.0),
+        (float("nan"), 1.0, 0.1, 10.0),
     ],
 )
 def test_perspective_rejects_invalid_parameters(args):
     with pytest.raises(ValueError):
         perspective(*args)
+
+
+def test_vulkan_perspective_rejects_invalid_parameters():
+    with pytest.raises(ValueError):
+        perspective_vulkan(math.radians(60), float("inf"), 0.1, 100.0)
 
 
 def test_look_at_handles_up_vector_parallel_to_view():
@@ -42,6 +58,7 @@ def test_camera_resize_and_projection():
     assert camera.aspect == pytest.approx(16 / 9)
     assert not camera.resize(0, 0)
     assert camera.projection_matrix.shape == (4, 4)
+    assert camera.vulkan_projection_matrix.shape == (4, 4)
 
 
 def test_rotation_y_is_orthonormal():
