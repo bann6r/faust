@@ -13,11 +13,12 @@ python -m pip install -r requirements-assets.txt
 ```
 
 PyAssimp also needs the native Assimp shared library; the Python package alone
-is not the native parser. On Windows, Faust automatically looks for the
-`assimp-vc145-mt.dll` build in the current user's
-`Downloads/windows-x64-v6.0.6/Release` folder. It registers that directory
-for DLL dependency lookup and directs PyAssimp's native-library lookup to the
-DLL, so a global Windows PATH edit is not required.
+is not the native parser. On Windows, Faust first looks for
+`assimp-vc145-mt.dll` in the repository root (next to `game.py`). If it is
+not there, Faust falls back to the current user's
+`Downloads/windows-x64-v6.0.6/Release` folder. It registers the DLL's
+directory for dependency lookup and directs PyAssimp's native-library lookup
+to the DLL, so a global Windows PATH edit is not required.
 
 To use a different Assimp build, set `ASSIMP_LIBRARY_DIR` to either the full
 DLL path or the directory containing an `assimp*.dll` file. The DLL must
