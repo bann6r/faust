@@ -245,6 +245,7 @@ class Renderer:
         self.bloom_a=_Target(ctx,half); self.bloom_b=_Target(ctx,half)
         self.shadow_depth=ctx.depth_texture((shadow_size,shadow_size))
         self.shadow_depth.filter=(moderngl.NEAREST,moderngl.NEAREST)
+        self.shadow_depth.compare_func=""
         self.shadow_depth.repeat_x=False; self.shadow_depth.repeat_y=False
         self.shadow_fbo=ctx.framebuffer(depth_attachment=self.shadow_depth)
         self.shadow_size=shadow_size; self.environment=None; self._released=False
