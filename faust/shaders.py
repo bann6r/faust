@@ -185,9 +185,8 @@ void main(){
  vec3 hdr=texture(u_hdr,v_uv).rgb+
           texture(u_bloom,v_uv).rgb*u_bloom_strength;
  vec3 mapped=aces(hdr*u_exposure);
- // The default GLFW framebuffer is sRGB when the window requests it.
- // Faust writes linear output and enables GL_FRAMEBUFFER_SRGB when available.
- frag_color=vec4(mapped,1.0);
+ vec3 srgb=mix(12.92*mapped,1.055*pow(max(mapped,vec3(0.0)),vec3(1.0/2.4))-0.055,step(vec3(0.0031308),mapped));
+ frag_color=vec4(srgb,1.0);
 }
 """
 
