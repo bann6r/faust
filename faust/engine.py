@@ -163,7 +163,12 @@ class Mesh:
     def vao(self,program):
         key=id(program)
         if key not in self._vaos:
-            self._vaos[key]=self.ctx.vertex_array(program,[(self.vbo,"3f 3f 2f","in_position","in_normal","in_uv")],self.ibo)
+            if "in_normal" in program and "in_uv" in program:
+                content=[(self.vbo,"3f 3f 2f","in_position","in_normal","in_uv")]
+            else:
+                # Depth-only shaders skip the packed normal and UV attributes.
+                content=[(self.vbo,"3f 20x","in_position")]
+            self._vaos[key]=self.ctx.vertex_array(program,content,self.ibo)
         return self._vaos[key]
     def render(self,program):
         if self._released: raise RuntimeError("mesh has been released")
