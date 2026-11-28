@@ -357,6 +357,29 @@ class Renderer:
         self._released=True
 
 
+
+class Engine:
+    """Small application-facing facade; the caller owns the GL context/window."""
+    def __init__(self,ctx,size=(1280,720),*,scene=None,camera=None,**renderer_options):
+        self.ctx=ctx
+        self.scene=scene if scene is not None else Scene()
+        self.camera=camera if camera is not None else Camera(aspect=size[0]/size[1])
+        self.renderer=Renderer(ctx,size,**renderer_options)
+        self._released=False
+    def resize(self,width,height):
+        if self._released: raise RuntimeError("engine has been released")
+        if width<=0 or height<=0: return False
+        self.camera.resize(width,height)
+        return self.renderer.resize(width,height)
+    def render(self,*,output=None):
+        if self._released: raise RuntimeError("engine has been released")
+        self.renderer.render(self.scene,self.camera,output=output)
+    def release(self):
+        if not self._released:
+            self.renderer.release()
+            self._released=True
+
+
 def cube_data():
     """36 vertices, outward-facing normals, UVs."""
     faces=[((-1,-1,1),(1,-1,1),(1,1,1),(-1,1,1),(0,0,1)),
