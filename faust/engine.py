@@ -310,9 +310,13 @@ class Renderer:
                 p["u_prefilter_max_lod"].value=0.0
             lights=scene.point_lights
             p["u_point_count"].value=len(lights)
+            positions=np.zeros((8,4),dtype="f4")
+            radiances=np.zeros((8,3),dtype="f4")
             for i,l in enumerate(lights):
-                p[f"u_point_position_radius[{i}]"].value=(*l.position,l.radius)
-                p[f"u_point_radiance[{i}]"].value=l.radiance
+                positions[i,:3]=l.position; positions[i,3]=l.radius
+                radiances[i]=l.radiance
+            p["u_point_position_radius"].write(positions.tobytes())
+            p["u_point_radiance"].write(radiances.tobytes())
             item.mesh.render(p)
     def _postprocess(self,output=None):
         self.ctx.disable(moderngl.DEPTH_TEST)
