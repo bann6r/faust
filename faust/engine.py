@@ -329,7 +329,9 @@ class Renderer:
                 self.ctx.viewport=(0,0,*target.color.size); self.quad_vaos[2].render()
                 source=target
             bloom_tex=source.color
-        (output or self.ctx.screen).use(); self.ctx.viewport=(0,0,self.width,self.height)
+        if output is None: self.ctx.screen.use()
+        else: output.use()
+        self.ctx.viewport=(0,0,self.width,self.height)
         self.hdr.color.use(0); bloom_tex.use(1)
         self.fullscreen["u_exposure"].value=self.exposure
         self.fullscreen["u_bloom_strength"].value=self.bloom_strength if self.bloom_enabled else 0.0
