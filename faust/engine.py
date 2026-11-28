@@ -309,7 +309,7 @@ class Renderer:
                 p[f"u_point_position_radius[{i}]"].value=(*l.position,l.radius)
                 p[f"u_point_radiance[{i}]"].value=l.radiance
             item.mesh.render(p)
-    def _postprocess(self):
+    def _postprocess(self,output=None):
         self.ctx.disable(moderngl.DEPTH_TEST)
         bloom_tex=self.bloom_b.color
         if self.bloom_enabled:
@@ -324,18 +324,18 @@ class Renderer:
                 self.ctx.viewport=(0,0,*target.color.size); self.quad_vaos[2].render()
                 source=target
             bloom_tex=source.color
-        self.ctx.screen.use(); self.ctx.viewport=(0,0,self.width,self.height)
+        (output or self.ctx.screen).use(); self.ctx.viewport=(0,0,self.width,self.height)
         self.hdr.color.use(0); bloom_tex.use(1)
         self.fullscreen["u_exposure"].value=self.exposure
         self.fullscreen["u_bloom_strength"].value=self.bloom_strength if self.bloom_enabled else 0.0
         self.quad_vaos[0].render()
-    def render(self,scene,camera,*,target_size=None):
+    def render(self,scene,camera,*,target_size=None,output=None):
         if self._released:raise RuntimeError("renderer has been released")
         if target_size:self.resize(*target_size); camera.resize(*target_size)
         light_matrix=scene.directional_light.matrix()
         self._draw_shadows(scene,light_matrix)
         self._draw_scene(scene,camera,light_matrix)
-        self._postprocess()
+        self._postprocess(output)
     def release(self):
         if self._released:return
         for r in (self.shadow_fbo,self.shadow_depth,self.hdr,self.bloom_a,self.bloom_b,
