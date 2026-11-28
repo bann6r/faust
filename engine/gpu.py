@@ -37,3 +37,29 @@ def inspect_device_properties(properties):
         api_version=_api_version_tuple(properties.apiVersion),
         driver_version=int(properties.driverVersion),
     )
+
+
+@dataclass(frozen=True, slots=True)
+class OpenGLContextInfo:
+    renderer: str
+    version: str
+    version_code: int
+
+def inspect_context(context):
+    """Return basic ModernGL context metadata."""
+    return OpenGLContextInfo(
+        renderer=str(context.info.get("GL_RENDERER", "Unknown")),
+        version=str(context.info.get("GL_VERSION", "Unknown")),
+        version_code=int(context.version_code),
+    )
+
+def validate_context(context, minimum=(3, 3)):
+    """Validate that a supplied ModernGL context meets the requested version."""
+    info = inspect_context(context)
+    required = int(minimum[0]) * 100 + int(minimum[1]) * 10
+    if info.version_code < required:
+        raise RuntimeError(
+            f"Faust requires OpenGL {minimum[0]}.{minimum[1]}; "
+            f"found {info.version} ({info.version_code})"
+        )
+    return info
