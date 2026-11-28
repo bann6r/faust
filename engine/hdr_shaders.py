@@ -92,7 +92,7 @@ float shadow_visibility(vec3 N, vec3 L) {
     if (!u_shadows_enabled) return 1.0;
     vec3 proj=v_shadow_pos.xyz/v_shadow_pos.w;
     proj=proj*0.5+0.5;
-    if (proj.z>1.0 || proj.x<0.0 || proj.x>1.0 || proj.y<0.0 || proj.y>1.0) return 1.0;
+    if (proj.z<0.0 || proj.z>1.0 || proj.x<0.0 || proj.x>1.0 || proj.y<0.0 || proj.y>1.0) return 1.0;
     float bias=max(u_shadow_bias*(1.0-dot(N,L)),u_shadow_bias*0.25);
     float visibility=0.0;
     for(int x=-1;x<=1;x++) for(int y=-1;y<=1;y++) {

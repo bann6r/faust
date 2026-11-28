@@ -9,7 +9,7 @@ import pytest
 
 def test_standalone_pbr_render_produces_pixels():
     moderngl=pytest.importorskip("moderngl")
-    from faust import Camera, DirectionalLight, Material, Mesh, Renderer, Scene, sphere_data
+    from engine.hdr import Camera, DirectionalLight, Material, Mesh, HDRRenderer as Renderer, Scene, sphere_data
 
     try:
         ctx=moderngl.create_standalone_context()
@@ -25,7 +25,9 @@ def test_standalone_pbr_render_produces_pixels():
         depth=ctx.depth_renderbuffer((96,96))
         target=ctx.framebuffer([color],depth)
         renderer=Renderer(ctx,(96,96),shadow_size=256,bloom=False)
-        renderer.render(scene,camera,output=target)
+        renderer.render(scene,camera,target_fbo=target)
+        assert ctx.viewport == (0, 0, 96, 96)
+        assert renderer.bloom_a is None and renderer.bloom_b is None
         pixels=np.frombuffer(color.read(alignment=1),dtype=np.uint8).reshape(96,96,4)
         assert pixels[:,:,:3].max()>0
         assert np.count_nonzero(pixels[:,:,:3])>96*96

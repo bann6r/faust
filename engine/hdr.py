@@ -13,7 +13,7 @@ from typing import Optional, Sequence
 import moderngl
 import numpy as np
 
-from . import shaders
+from . import hdr_shaders as shaders
 
 
 def _v3(value, name="vector"):
@@ -227,8 +227,8 @@ class _Target:
         self.color.release()
 
 
-class Renderer:
-    def __init__(self,ctx,size=(1280,720),*,shadow_size=2048,bloom=True,exposure=1.0,bloom_strength=0.08):
+class HDRRenderer:
+    def __init__(self,ctx,size=(1280,720),*,shadow_size=1024,bloom=True,exposure=1.0,bloom_strength=0.08):
         self.ctx=ctx; self.width,self.height=map(int,size)
         if min(self.width,self.height)<=0: raise ValueError("render size must be positive")
         self.exposure=float(exposure); self.bloom_strength=float(bloom_strength); self.bloom_enabled=bloom
@@ -242,7 +242,7 @@ class Renderer:
         self.quad_vaos=[ctx.vertex_array(p,[(self.quad_buffer,"2f 2f","in_position","in_uv")]) for p in (self.fullscreen,self.bright,self.blur)]
         self.hdr=_Target(ctx,(self.width,self.height),True)
         half=(max(1,self.width//2),max(1,self.height//2))
-        self.bloom_a=_Target(ctx,half); self.bloom_b=_Target(ctx,half)
+        self.bloom_a=_Target(ctx,half) if bloom else None; self.bloom_b=_Target(ctx,half) if bloom else None
         self.shadow_depth=ctx.depth_texture((shadow_size,shadow_size))
         self.shadow_depth.filter=(moderngl.NEAREST,moderngl.NEAREST)
         self.shadow_depth.compare_func=""
@@ -261,11 +261,14 @@ class Renderer:
         width,height=int(width),int(height)
         if width<=0 or height<=0:return False
         if (width,height)==(self.width,self.height):return True
-        self.hdr.release(); self.bloom_a.release(); self.bloom_b.release()
+        self.hdr.release()
+        if self.bloom_a: self.bloom_a.release()
+        if self.bloom_b: self.bloom_b.release()
         self.width,self.height=width,height
         self.hdr=_Target(self.ctx,(width,height),True)
         half=(max(1,width//2),max(1,height//2))
-        self.bloom_a=_Target(self.ctx,half); self.bloom_b=_Target(self.ctx,half)
+        self.bloom_a=_Target(self.ctx,half) if self.bloom_enabled else None
+        self.bloom_b=_Target(self.ctx,half) if self.bloom_enabled else None
         return True
     def _draw_shadows(self,scene,light_matrix):
         if not scene.directional_light.cast_shadows:return
@@ -321,7 +324,7 @@ class Renderer:
             item.mesh.render(p)
     def _postprocess(self,output=None):
         self.ctx.disable(moderngl.DEPTH_TEST)
-        bloom_tex=self.bloom_b.color
+        bloom_tex=self.hdr.color
         if self.bloom_enabled:
             self.bright["u_threshold"].value=1.0
             self.hdr.color.use(0); self.bloom_a.fbo.use()
@@ -334,16 +337,24 @@ class Renderer:
                 self.ctx.viewport=(0,0,*target.color.size); self.quad_vaos[2].render()
                 source=target
             bloom_tex=source.color
-        if output is None: self.ctx.screen.use()
-        else: output.use()
-        self.ctx.viewport=(0,0,self.width,self.height)
+        target = self.ctx.screen if output is None else output
+        target.use()
+        target_size = getattr(target, "size", (self.width, self.height))
+        self.ctx.viewport=(0,0,int(target_size[0]),int(target_size[1]))
         self.hdr.color.use(0); bloom_tex.use(1)
         self.fullscreen["u_exposure"].value=self.exposure
         self.fullscreen["u_bloom_strength"].value=self.bloom_strength if self.bloom_enabled else 0.0
         self.quad_vaos[0].render()
-    def render(self,scene,camera,*,target_size=None,output=None):
+    def render(self,scene,camera,*,target_size=None,target_fbo=None,output=None):
         if self._released:raise RuntimeError("renderer has been released")
-        if target_size:self.resize(*target_size); camera.resize(*target_size)
+        if target_fbo is not None and output is not None:
+            raise ValueError("pass only one of target_fbo or output")
+        output = target_fbo if target_fbo is not None else output
+        if target_size:
+            self.resize(*target_size)
+        elif output is not None and hasattr(output, "size"):
+            self.resize(*output.size)
+        camera.resize(self.width,self.height)
         light_matrix=scene.directional_light.matrix()
         self._draw_shadows(scene,light_matrix)
         self._draw_scene(scene,camera,light_matrix)
@@ -358,13 +369,13 @@ class Renderer:
 
 
 
-class Engine:
+class HDREngine:
     """Small application-facing facade; the caller owns the GL context/window."""
     def __init__(self,ctx,size=(1280,720),*,scene=None,camera=None,**renderer_options):
         self.ctx=ctx
         self.scene=scene if scene is not None else Scene()
         self.camera=camera if camera is not None else Camera(aspect=size[0]/size[1])
-        self.renderer=Renderer(ctx,size,**renderer_options)
+        self.renderer=HDRRenderer(ctx,size,**renderer_options)
         self._released=False
     def resize(self,width,height):
         if self._released: raise RuntimeError("engine has been released")
